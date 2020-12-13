@@ -1,0 +1,41 @@
+{
+  "name": "enhance-generator",
+  "version": "1.0.0",
+  "description": "Enhance Generator/Iterator with mutation and desigion-making methods",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "private": false,
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon --watch src/ --ext ts --exec 'tsc && node dist/index.js'",
+    "build": "tsc",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "Enhance",
+    "GeneratorFunction",
+    "Generator",
+    "Iterator",
+    "map",
+    "forEach",
+    "some",
+    "every",
+    "indexOf",
+    "find",
+    "findIndex",
+    "mutation",
+    "condition",
+    "desigion"
+  ],
+  "author": "Ando",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AndoGhevian/EnhanceGenerator.git"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^14.11.2",
+    "nodemon": "^2.0.4"
+  },
+  "dependencies": {}
+}
