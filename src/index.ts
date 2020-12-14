@@ -5,16 +5,17 @@ interface Enhance {
 interface EnhancedGeneratorFunction<T = any, R = any, N = any, C extends any[] = any[]> {
     readonly isEnhancedGeneratorFunction: true;
 
-    map<U>(callbackfn: (value: T, index: number, items: U[], notModifiedItems: T[]) => U, thisArg?: any): EnhancedGeneratorFunction<U, R, N, C>;
-    forEach<U>(callbackfn: (value: T, index: number, items: T[], notModifiedItems: T[]) => void, thisArg?: any): EnhancedGeneratorFunction<T, R, N, C>;
-    some(predicate: (value: T, index: number, items: T[], notModifiedItems: T[]) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;
-    every(predicate: (value: T, index: number, items: T[], notModifiedItems: T[]) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;
+    map<U>(callbackfn: (value: T, index: number, items: U[], modifiedItems: T[]) => U, thisArg?: any): EnhancedGeneratorFunction<U, R, N, C>;
+    forEach<U>(callbackfn: (value: T, index: number, items: T[], modifiedItems: T[]) => void, thisArg?: any): EnhancedGeneratorFunction<T, R, N, C>;
+    some(predicate: (value: T, index: number, items: T[], modifiedItems: T[]) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;
+    every(predicate: (value: T, index: number, items: T[], modifiedItems: T[]) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;
     indexOf(searchElement: T, fromIndex?: number): EnhancedGeneratorFunction<T, number | R, N, C>;
-    find(predicate: (value: T, index: number, items: T[], notModifiedItems: T[]) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;
-    findIndex(predicate: (value: T, index: number, items: T[], notModifiedItems: T[]) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, number | R, N, C>;
+    find(predicate: (value: T, index: number, items: T[], modifiedItems: T[]) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;
+    findIndex(predicate: (value: T, index: number, items: T[], modifiedItems: T[]) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, number | R, N, C>;
+    clone(): EnhancedGeneratorFunction<T, R, N, C>;
     (...args: [...C]): Generator<T, R, N>;
 }
-type Layers = Exclude<keyof EnhancedGeneratorFunction, 'isEnhancedGeneratorFunction'>
+type Layers = Exclude<keyof EnhancedGeneratorFunction, 'isEnhancedGeneratorFunction' | 'clone'>
 const Layers: Layers[] = ['map', 'forEach', 'some', 'every', 'indexOf', 'find', 'findIndex']
 
 const enhance: Enhance = function (generatorFunction) {
@@ -56,7 +57,7 @@ const enhance: Enhance = function (generatorFunction) {
                             return index
                         }
                         break
-                    case 'indexOf'
+                    case 'indexOf':
                     case 'every':
                         if (layerResult !== true) {
                             return val
