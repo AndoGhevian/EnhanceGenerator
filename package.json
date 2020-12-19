@@ -1,7 +1,7 @@
 {
   "name": "enhance-generator",
   "version": "1.0.0",
-  "description": "Enhance Generator/Iterator with mutation and desigion-making methods",
+  "description": "Enhance GeneratorFunction with mutation and desigion-making methods",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "private": false,
