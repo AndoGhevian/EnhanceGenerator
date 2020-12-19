@@ -20,7 +20,6 @@
     "forEach",
     "some",
     "every",
-    "indexOf",
     "find",
     "findIndex",
     "mutation",
