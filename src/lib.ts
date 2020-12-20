@@ -4,7 +4,7 @@ export type SymbolLayers = typeof SymbolLayers
 export const SymbolGenFunc = Symbol('SymbolGenFunc')
 export type SymbolGenFunc = typeof SymbolGenFunc
 
-export type Layers = Exclude<keyof EnhancedGeneratorFunction, 'isEnhancedGeneratorFunction' | 'clone'>
+export type Layers = Exclude<keyof EnhancedGeneratorFunction, 'isEnhancedGeneratorFunction'>
 export const Layers: Layers[] = ['map', 'forEach', 'some', 'every', 'find', 'findIndex']
 
 export interface Layer {
@@ -26,16 +26,31 @@ export interface EnhancedGeneratorFunction<T = unknown, R = any, N = unknown, C 
     every(predicate: (value: T, index: number) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;
     find(predicate: (value: T, index: number) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;
     findIndex(predicate: (value: T, index: number) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, number | R, N, C>;
-    clone(): EnhancedGeneratorFunction<T, R, N, C>;
     (...args: [...C]): Generator<T, R, N>;
 }
-export interface EnhancedGeneratorFunctionPrivate extends EnhancedGeneratorFunction {
-    [SymbolLayers]: Layer[]
-    [SymbolGenFunc]: (...args: any[]) => Generator
+export interface EnhancedGeneratorFunctionPrivate<T = unknown, R = any, N = unknown, C extends any[] = unknown[]> extends EnhancedGeneratorFunction<T, R, N, C> {
+    [SymbolLayers]: Layer[];
+    [SymbolGenFunc]: (...args: any[]) => Generator;
 }
 
-import layerInserters from './layerInserters'
+// Layer Inserters created ones -
+const layerInserters: {
+    [P in Layers]: (this: EnhancedGeneratorFunctionPrivate, cb: Function, thisArg?: any) => EnhancedGeneratorFunctionPrivate;
+} = {} as any
 
+for (const layer of Layers) {
+    layerInserters[layer] = function (handler, thisArg) {
+        const layers: Layer[] = [...this[SymbolLayers], {
+            layer,
+            handler,
+            thisArg
+        }]
+        const originalGenFunc = this[SymbolGenFunc]
+
+
+        return initEnhancedGeneratorFunction(originalGenFunc, layers)
+    }
+}
 
 
 export const enhance: Enhance = function (generatorFunction) {
@@ -45,15 +60,6 @@ export const enhance: Enhance = function (generatorFunction) {
 
     return initEnhancedGeneratorFunction(originalGenFunc, layers) as any
 }
-
-function clone(this: EnhancedGeneratorFunctionPrivate): EnhancedGeneratorFunctionPrivate {
-    const layers: Layer[] = [...this[SymbolLayers]]
-    const originalGenFunc = this[SymbolGenFunc]
-
-
-    return initEnhancedGeneratorFunction(originalGenFunc, layers)
-}
-
 
 
 function initEnhancedGeneratorFunction(
@@ -81,7 +87,6 @@ function initEnhancedGeneratorFunction(
     for (const layer of Layers) {
         enhancedGeneratorFunction[layer] = layerInserters[layer] as any
     }
-    enhancedGeneratorFunction.clone = clone
 
     Object.defineProperty(enhancedGeneratorFunction, SymbolLayers, {
         value: layers,
@@ -97,7 +102,6 @@ function initEnhancedGeneratorFunction(
         every: { enumerable: false },
         find: { enumerable: false },
         findIndex: { enumerable: false },
-        clone: { enumerable: false },
     })
     return enhancedGeneratorFunction
 }
