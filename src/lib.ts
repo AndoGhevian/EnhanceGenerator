@@ -4,12 +4,17 @@ export type SymbolLayers = typeof SymbolLayers
 export const SymbolGenFunc = Symbol('SymbolGenFunc')
 export type SymbolGenFunc = typeof SymbolGenFunc
 
+/**Middlware layer types */
 export type Layers = Exclude<keyof EnhancedGeneratorFunction, 'isEnhancedGeneratorFunction'>
 export const Layers: Layers[] = ['map', 'forEach', 'some', 'every', 'find', 'findIndex']
 
+/**Middleware Layer */
 export interface Layer {
+    /**Layer type */
     layer: Layers;
+    /**Layer handler */
     handler: Function;
+    /****this** arg for layer handler */
     thisArg: any;
 }
 
@@ -20,11 +25,17 @@ export interface Enhance {
 export interface EnhancedGeneratorFunction<T = unknown, R = any, N = unknown, C extends any[] = unknown[]> {
     isEnhancedGeneratorFunction: true;
 
+    /**Map values to another ones, returned by callbackfn */
     map<U>(callbackfn: (value: T, index: number) => U, thisArg?: any): EnhancedGeneratorFunction<U, R, N, C>;
+    /**Do some stuff on next call */
     forEach<U>(callbackfn: (value: T, index: number) => void, thisArg?: any): EnhancedGeneratorFunction<T, R, N, C>;
+    /**If predicate return trithy value, GeneratorFunction will be returned with current value */
     some(predicate: (value: T, index: number) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;
+    /**If predicate return falsey value, GeneratorFunction will be returned with current value */
     every(predicate: (value: T, index: number) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;
+    /**If predicate return truthy value, GeneratorFunction will be returned with current value(Same as _some_) */
     find(predicate: (value: T, index: number) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;
+    /**If predicate return truthy value, GeneratorFunction will be returned with current yield index */
     findIndex(predicate: (value: T, index: number) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, number | R, N, C>;
     (...args: [...C]): Generator<T, R, N>;
 }
