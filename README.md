@@ -1,5 +1,7 @@
 # EnhanceGenerator
-If you want some middlewares for **GeneratorFunctions** which will be called
+### Supported for ES2018 and above
+
+If you want some middlewares **(sync/async)** for **GeneratorFunctions**(**AsyncGeneratorFunctions**) which will be called
 on each **yield** value, then this package is for you.
 
 ## Usage
@@ -137,9 +139,20 @@ for(const val of gen) {
 // 3
 // 6
 ```
+
 If Your original **GeneratorFunction** use **this context**, it will be passed through the
 **enhanced** one to it. So the behaviour will be the same for each.
 
 You can use this **Enhanced GeneratorFunctions** as the original ones. They are simple **GeneratorFunctions** with some additional methods on them, So you can pass them
 to any library that accepts **GeneratorFunctions**.
 You can check if some function is **Enhanced Generator Function** with property **isEnhancedGeneratorFunction** on it.
+
+### Async
+You can Use **async functions**, in layer addition methods **(map,forEach...)**, also you can use **AsyncGeneratorFunctions** when calling **enhance(generatorFunction)**. Saying **async**,
+we mean explicit usage of **async keyword**. From the point of time you use
+**AsyncFunction**  or **AsyncGeneratorFunction**, resulting **EnhancedGeneratorFunctions** will be **async**
+as well. You can check if it is with property **isAsync** on returned **EnhancedGeneratorFunctions**.
+> NOTE: In this cases you must be careful and be sure you call them with **for await of...**
+and not with **for of...**.
+
+When you instead of **async keyword** use a simple function which returns **Promise** it will not be awaited, it will be passed directly (if it expected to be passed, as with **map**) to next layer as simple value.
