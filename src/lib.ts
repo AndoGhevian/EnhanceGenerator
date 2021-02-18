@@ -7,15 +7,17 @@ import {
     isFunction,
 } from './utils'
 
+/**Symbol of layers of EnhancedGeneratorFunction */
 export const SymbolLayers = Symbol('SymbolLayers')
 export type SymbolLayers = typeof SymbolLayers
 
+/**Symbol of original GeneratorFunction/AsyncGeneratorFunction */
 export const SymbolGenFunc = Symbol('SymbolGenFunc')
 export type SymbolGenFunc = typeof SymbolGenFunc
 
 /**Middlware layer types */
-export type Layers = Exclude<keyof EnhancedGeneratorFunction, 'isEnhancedGeneratorFunction'>
-export const Layers: Layers[] = ['map', 'forEach', 'some', 'every', 'find', 'findIndex']
+export type Layers = 'map' | 'forEach' | 'break' | 'continue' | 'skip'
+export const Layers: Layers[] = ['map', 'forEach', 'break', 'continue', 'skip']
 
 /**Middleware Layer */
 export interface Layer {
@@ -29,6 +31,7 @@ export interface Layer {
     isAsync: boolean;
 }
 
+/**Enhance GeneratorFunction/AsyncGeneratorFunction with additional methods. */
 export interface Enhance {
     <U extends Generator | AsyncGenerator, C extends any[]>(generatorFunction: (...args: [...C]) => U):
         U extends Generator<infer T, infer R, infer N> ? EnhancedGeneratorFunction<T, R, N, C>
@@ -37,55 +40,63 @@ export interface Enhance {
 }
 
 export interface AsyncEnhancedGeneratorFunction<T = unknown, R = any, N = unknown, C extends any[] = unknown[]> {
+    /**Indicates that this is EnhancedGeneratorFunction */
     isEnhancedGeneratorFunction: true;
+    /**Indicates if original GeneratorFunction is Async, i.e. AsyncGeneratorFunction */
     isOriginalAsync: boolean;
+    /**Indicates if this EnhancedGeneratorFunction (chain) is Async, i.e. AsyncGeneratorFunction */
     isAsync: true;
+    /**Getter for layers of this EnhancedGeneratorFunction */
+    layers: Layer[]
+    /**Getter for original GeneratorFunction (AsyncGeneratorFunction) of this EnhancedGeneratorFunction */
+    originalGeneratorFunction: GeneratorFunction | AsyncGeneratorFunction
 
     /**Map values to another ones, returned by callbackfn */
     map<U>(callbackfn: (value: T, index: number) => U, thisArg?: any):
         U extends Promise<infer X> ? AsyncEnhancedGeneratorFunction<X, R, N, C> | AsyncEnhancedGeneratorFunction<U, R, N, C>
         : AsyncEnhancedGeneratorFunction<U, R, N, C>;
-    /**Do some stuff on next call */
+    /**Do some stuff before yield */
     forEach<U extends void | Promise<void> = void>(callbackfn: (value: T, index: number) => U, thisArg?: any): AsyncEnhancedGeneratorFunction<T, R, N, C>
-    /**If predicate return trithy value, GeneratorFunction will be returned with current value */
-    some<U extends any = unknown>(predicate: (value: T, index: number) => U, thisArg?: any): AsyncEnhancedGeneratorFunction<T, T | R, N, C>;
-    /**If predicate return falsey value, GeneratorFunction will be returned with current value */
-    every<U extends any = unknown>(predicate: (value: T, index: number) => U, thisArg?: any): AsyncEnhancedGeneratorFunction<T, T | R, N, C>;
-    /**If predicate return truthy value, GeneratorFunction will be returned with current value(Same as _some_) */
-    find<U extends any = unknown>(predicate: (value: T, index: number) => U, thisArg?: any): AsyncEnhancedGeneratorFunction<T, T | R, N, C>;
-    /**If predicate return truthy value, GeneratorFunction will be returned with current yield index */
-    findIndex<U extends any = unknown>(predicate: (value: T, index: number) => U, thisArg?: any): AsyncEnhancedGeneratorFunction<T, number | R, N, C>;
+    /**If predicate return truthy value, rest of the layers in the chain will be skiped, current value will **NOT BE** yielded, and generator will continue */
+    skip<U extends void | Promise<void> = void>(callbackfn: (value: T, index: number) => U, thisArg?: any): AsyncEnhancedGeneratorFunction<T, R, N, C>
+    /**If predicate return truthy value, GeneratorFunction will be returned with current value */
+    break<U extends any = unknown>(predicate: (value: T, index: number) => U, thisArg?: any): AsyncEnhancedGeneratorFunction<T, T | R, N, C>;
+    /**If predicate return truthy value, rest of the layers in the chain will be skiped, current value will **BE** yielded, and generator will continue  */
+    continue<U extends any = any>(callbackfn: (value: T, index: number) => U, thisArg?: any): AsyncEnhancedGeneratorFunction<T, R, N, C>
     (...args: [...C]): AsyncGenerator<T, R, N>;
 }
 export interface EnhancedGeneratorFunction<T = unknown, R = any, N = unknown, C extends any[] = unknown[]> {
+    /**Indicates that this is EnhancedGeneratorFunction */
     isEnhancedGeneratorFunction: true;
+    /**Indicates if original GeneratorFunction is Async, i.e. AsyncGeneratorFunction */
     isOriginalAsync: false;
+    /**Indicates if this EnhancedGeneratorFunction (chain) is Async, i.e. AsyncGeneratorFunction */
     isAsync: false;
+    /**Getter for layers of this EnhancedGeneratorFunction */
+    layers: Layer[]
+    /**Getter for original GeneratorFunction (AsyncGeneratorFunction) of this EnhancedGeneratorFunction */
+    originalGeneratorFunction: GeneratorFunction | AsyncGeneratorFunction
 
     /**Map values to another ones, returned by callbackfn */
     map<U>(callbackfn: (value: T, index: number) => U, thisArg?: any):
         U extends Promise<infer X> ? AsyncEnhancedGeneratorFunction<X, R, N, C> | AsyncEnhancedGeneratorFunction<U, R, N, C>
         : EnhancedGeneratorFunction<U, R, N, C>;
-    /**Do some stuff on next call */
+    /**Do some stuff before yield */
     forEach<U extends void | Promise<void> = void>(callbackfn: (value: T, index: number) => U, thisArg?: any):
         U extends Promise<any> ? AsyncEnhancedGeneratorFunction<T, R, N, C>
         : EnhancedGeneratorFunction<T, R, N, C>;
-    /**If predicate return trithy value, GeneratorFunction will be returned with current value */
-    some<U extends any = unknown>(predicate: (value: T, index: number) => U, thisArg?: any):
+    /**If predicate return truthy value, rest of the layers in the chain will be skiped, current value will **NOT BE** yielded, and generator will continue */
+    skip<U extends any = any>(callbackfn: (value: T, index: number) => U, thisArg?: any):
+        U extends Promise<any> ? AsyncEnhancedGeneratorFunction<T, R, N, C>
+        : EnhancedGeneratorFunction<T, R, N, C>;
+    /**If predicate return truthy value, GeneratorFunction will be returned with current value */
+    break<U extends any = unknown>(predicate: (value: T, index: number) => U, thisArg?: any):
         U extends Promise<any> ? AsyncEnhancedGeneratorFunction<T, T | R, N, C>
         : EnhancedGeneratorFunction<T, T | R, N, C>;
-    /**If predicate return falsey value, GeneratorFunction will be returned with current value */
-    every<U extends any = unknown>(predicate: (value: T, index: number) => U, thisArg?: any):
-        U extends Promise<any> ? AsyncEnhancedGeneratorFunction<T, T | R, N, C>
-        : EnhancedGeneratorFunction<T, T | R, N, C>;
-    /**If predicate return truthy value, GeneratorFunction will be returned with current value(Same as _some_) */
-    find<U extends any = unknown>(predicate: (value: T, index: number) => U, thisArg?: any):
-        U extends Promise<any> ? AsyncEnhancedGeneratorFunction<T, T | R, N, C>
-        : EnhancedGeneratorFunction<T, T | R, N, C>;
-    /**If predicate return truthy value, GeneratorFunction will be returned with current yield index */
-    findIndex<U extends any = unknown>(predicate: (value: T, index: number) => U, thisArg?: any):
-        U extends Promise<any> ? AsyncEnhancedGeneratorFunction<T, number | R, N, C>
-        : EnhancedGeneratorFunction<T, number | R, N, C>;
+    /**If predicate return truthy value, rest of the layers in the chain will be skiped, current value will **BE** yielded, and generator will continue  */
+    continue<U extends any = unknown>(callbackfn: (value: T, index: number) => U, thisArg?: any):
+        U extends Promise<any> ? AsyncEnhancedGeneratorFunction<T, R, N, C>
+        : EnhancedGeneratorFunction<T, R, N, C>;
     (...args: [...C]): Generator<T, R, N>;
 }
 export type EnhancedGeneratorFunctionPrivate<T = unknown, R = any, N = unknown, C extends any[] = unknown[]> =
@@ -200,12 +211,27 @@ function initEnhancedGeneratorFunction(
     })
     Object.defineProperties(enhancedGeneratorFunction, {
         isEnhancedGeneratorFunction: { enumerable: false },
+        isOriginalAsync: { enumerable: false },
+        isAsync: { enumerable: false },
+        layers: {
+            enumerable: false,
+            get() {
+                return this[SymbolLayers].map((layer: any) => ({
+                    ...layer
+                }))
+            },
+        },
+        originalGeneratorFunction: {
+            enumerable: false,
+            get() {
+                return this[SymbolGenFunc]
+            },
+        },
         map: { enumerable: false },
         forEach: { enumerable: false },
-        some: { enumerable: false },
-        every: { enumerable: false },
-        find: { enumerable: false },
-        findIndex: { enumerable: false },
+        skip: { enumerable: false },
+        break: { enumerable: false },
+        continue: { enumerable: false },
     })
     return enhancedGeneratorFunction
 }
@@ -238,35 +264,41 @@ function enhancedGeneratorFunctionSketch(
                 }
 
                 let modifiedNextVal = nextVal.value
+                let skip = false
+                let skipAndYield = false
                 for (const { handler, layer, thisArg, isAsync } of layers) {
                     const handlerResult = isAsync ? await handler.call(thisArg, modifiedNextVal, index) : handler.call(thisArg, modifiedNextVal, index)
                     switch (layer) {
                         case 'map':
                             modifiedNextVal = handlerResult
                             break
-                        case 'find':
-                        case 'some':
-                            if (handlerResult) {
-                                return modifiedNextVal
-                            }
-                            break
-                        case 'every':
-                            if (!handlerResult) {
-                                return modifiedNextVal
-                            }
-                            break
-                        case 'findIndex':
-                            if (handlerResult) {
-                                return index
-                            }
-                            break
                         case 'forEach':
+                            break
+                        case 'skip':
+                            if (handlerResult) {
+                                skip = true
+                            }
+                            break
+                        case 'break':
+                            if (handlerResult) {
+                                return modifiedNextVal
+                            }
+                            break
+                        case 'continue':
+                            if (handlerResult) {
+                                skipAndYield = true
+                            }
+                            break
                         default:
                             break
                     }
+
+                    if (skip || skipAndYield) break
                 }
 
-                nextArg = yield modifiedNextVal
+                if (!skip) {
+                    nextArg = yield modifiedNextVal
+                }
                 index++
             }
         })()
@@ -284,35 +316,41 @@ function enhancedGeneratorFunctionSketch(
             }
 
             let modifiedNextVal = nextVal.value
+            let skip = false
+            let skipAndYield = false
             for (const { handler, layer, thisArg } of layers) {
                 const handlerResult = handler.call(thisArg, modifiedNextVal, index)
                 switch (layer) {
                     case 'map':
                         modifiedNextVal = handlerResult
                         break
-                    case 'find':
-                    case 'some':
-                        if (handlerResult) {
-                            return modifiedNextVal
-                        }
-                        break
-                    case 'every':
-                        if (!handlerResult) {
-                            return modifiedNextVal
-                        }
-                        break
-                    case 'findIndex':
-                        if (handlerResult) {
-                            return index
-                        }
-                        break
                     case 'forEach':
+                        break
+                    case 'skip':
+                        if (handlerResult) {
+                            skip = true
+                        }
+                        break
+                    case 'break':
+                        if (handlerResult) {
+                            return modifiedNextVal
+                        }
+                        break
+                    case 'continue':
+                        if (handlerResult) {
+                            skipAndYield = true
+                        }
+                        break
                     default:
                         break
                 }
+
+                if (skip || skipAndYield) break
             }
 
-            nextArg = yield modifiedNextVal
+            if (!skip) {
+                nextArg = yield modifiedNextVal
+            }
             index++
         }
     })()
@@ -326,7 +364,7 @@ function enhancedGeneratorFunctionSketch(
 //     map<U>(callbackfn: (value: T, index: number) => U, thisArg?: any): EnhancedGeneratorFunction<U, R, N, C>;
 //     /**Do some stuff on next call */
 //     forEach<U>(callbackfn: (value: T, index: number) => void, thisArg?: any): EnhancedGeneratorFunction<T, R, N, C>;
-//     /**If predicate return trithy value, GeneratorFunction will be returned with current value */
+//     /**If predicate return truthy value, GeneratorFunction will be returned with current value */
 //     some(predicate: (value: T, index: number) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;
 //     /**If predicate return falsey value, GeneratorFunction will be returned with current value */
 //     every(predicate: (value: T, index: number) => unknown, thisArg?: any): EnhancedGeneratorFunction<T, T | R, N, C>;

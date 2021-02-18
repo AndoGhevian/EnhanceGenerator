@@ -32,7 +32,7 @@ describe('enhance', function () {
     const returnedValue = 'hey'
 
     describe('Returned Value', function () {
-        const methods = ['map', 'forEach', 'some', 'every', 'find', 'findIndex']
+        const methods = ['map', 'forEach', 'break', 'continue', 'skip']
 
         const enhancedSyncSingle = enhance(genFunc)
         const enhancedAsyncSingle = enhance(genFuncAsync)
@@ -57,12 +57,44 @@ describe('enhance', function () {
             expect(enhancedAsyncSingle.isAsync)
                 .to.be.true
         })
+        specify('#layers read-only array', function () {
+            for (let i = 0; i < enhancedSingles.length; i++) {
+                const enhanced = enhancedSingles[i]
+                const layers = enhanced.layers
+                expect(layers)
+                    .to.be.an('array')
+
+                enhanced.layers = Array(100)
+                expect(enhanced.layers.length)
+                    .lengthOf.to.be.eq(layers.length)
+            }
+        })
+        specify('#originalGeneratorFunction read-only GeneratorFunction/AsyncGeneratorFunction', function () {
+            const enhanced = enhance(genFunc)
+            const enhancedAsync = enhance(genFuncAsync)
+
+            const originalGeneratorFunction = enhanced.originalGeneratorFunction
+            const originalGeneratorFunctionAsync = enhancedAsync.originalGeneratorFunction
+
+            expect(isGeneratorFunction(originalGeneratorFunction))
+                .to.be.true
+            expect(isAsyncGeneratorFunction(originalGeneratorFunctionAsync))
+                .to.be.true
+
+            enhanced.originalGeneratorFunction = function* () { }
+            expect(enhanced.originalGeneratorFunction)
+                .to.be.eq(originalGeneratorFunction)
+
+            enhancedAsync.originalGeneratorFunction = function* () { }
+            expect(enhancedAsync.originalGeneratorFunction)
+                .to.be.eq(originalGeneratorFunctionAsync)
+        })
 
         it(`Should include additional enhance methods: ${methods}`, function () {
             for (let i = 0; i < enhancedSingles.length; i++) {
                 const enhanced = enhancedSingles[i]
                 for (const method of methods) {
-                    expect(isFunction(enhanced[method]), `enhanced Must have method: #${method}`)
+                    expect(isFunction(enhanced[method]), `Enhanced Must have method: #${method}`)
                         .to.be.true
                 }
             }
@@ -87,47 +119,46 @@ describe('enhance', function () {
             const enhancedSync = enhancedSyncSingle
                 .map((v => v + 1))
                 .forEach(v => 2)
-                .some((v => v))
-                .every(v => 2)
-                .find(v => 2)
-                .findIndex(v => 2)
-                .some(v => v)
+                .break((v => false))
+                .continue(v => false)
+                .break((v => false))
+                .skip(v => false)
+                .break(v => v)
                 .map(v => 2)
                 .map(v => 2)
                 .map(v => 2)
             const enhancedAsyncOriginal = enhancedAsyncSingle
                 .map((v => v + 1))
                 .forEach(v => 2)
-                .some((v => v))
-                .every(v => 2)
-                .find(v => 2)
-                .map(v => v)
-                .findIndex(v => 2)
-                .some(v => v)
+                .break((v => false))
+                .continue(v => false)
+                .break((v => false))
+                .skip(v => false)
+                .break(v => v)
                 .map(v => 2)
                 .map(v => 2)
                 .map(v => 2)
             const enhancedAsyncMiddle = enhancedSyncSingle
                 .map((v => v + 1))
                 .forEach(v => 2)
-                .some((v => v))
-                .every(v => 2)
-                .find(v => 2)
+                .break((v => false))
+                .continue(v => false)
+                .break((v => false))
                 .map(async v => v)
-                .findIndex(v => 2)
-                .some(v => v)
+                .skip(v => false)
+                .break(v => v)
                 .map(v => 2)
                 .map(v => 2)
                 .map(v => 2)
             const enhancedAsyncOriginalMiddle = enhancedAsyncSingle
                 .map((v => v + 1))
                 .forEach(v => 2)
-                .some((v => v))
-                .every(v => 2)
-                .find(v => 2)
+                .break((v => false))
+                .continue(v => false)
+                .break((v => false))
                 .map(async v => v)
-                .findIndex(v => 2)
-                .some(v => v)
+                .skip(v => false)
+                .break(v => v)
                 .map(v => 2)
                 .map(v => 2)
                 .map(v => 2)
@@ -152,6 +183,30 @@ describe('enhance', function () {
                 enhancedAsyncOriginalEnd,
                 enhancedAsyncOriginalMiddleEnd,
             ]
+            const asyncChains = [
+                enhancedAsyncOriginal,
+                enhancedAsyncMiddle,
+                enhancedAsyncOriginalMiddle,
+
+                enhancedAsyncEnd,
+                enhancedAsyncMiddleEnd,
+                enhancedAsyncOriginalEnd,
+                enhancedAsyncOriginalMiddleEnd,
+            ]
+            const originalSync = [
+                enhancedSync,
+                enhancedAsyncMiddle,
+
+                enhancedAsyncEnd,
+                enhancedAsyncMiddleEnd,
+            ]
+            const originalAsync = [
+                enhancedAsyncOriginal,
+                enhancedAsyncOriginalMiddle,
+
+                enhancedAsyncOriginalEnd,
+                enhancedAsyncOriginalMiddleEnd,
+            ]
 
             describe('Returned Value', function () {
                 specify('#isEnhancedGeneratorFunction', function () {
@@ -162,434 +217,523 @@ describe('enhance', function () {
                     }
                 })
                 specify('#isOriginalAsync', function () {
-                    expect(enhancedSync.isOriginalAsync)
-                        .to.be.false
+                    for (let i = 0; i < originalAsync.length; i++) {
+                        const enhanced = originalAsync[i]
 
-                    expect(enhancedAsyncOriginal.isOriginalAsync)
-                        .to.be.true
-                    expect(enhancedAsyncMiddle.isOriginalAsync)
-                        .to.be.false
-                    expect(enhancedAsyncOriginalMiddle.isOriginalAsync)
-                        .to.be.true
+                        expect(enhanced.isOriginalAsync)
+                            .to.be.true
+                    }
 
-                    expect(enhancedAsyncEnd.isOriginalAsync)
-                        .to.be.false
-                    expect(enhancedAsyncMiddleEnd.isOriginalAsync)
-                        .to.be.false
-                    expect(enhancedAsyncOriginalEnd.isOriginalAsync)
-                        .to.be.true
-                    expect(enhancedAsyncOriginalMiddleEnd.isOriginalAsync)
-                        .to.be.true
+                    // with original-synchronous EnhancedGeneratorFunctions
+                    for (let i = 0; i < originalSync.length; i++) {
+                        const enhanced = originalSync[i]
+                        expect(enhanced.isOriginalAsync)
+                            .to.be.false
+                    }
                 })
                 specify('#isAsync', function () {
-                    expect(enhancedSync.isAsync)
+                    const enhanced = enhancedSync
+                    expect(enhanced.isAsync)
                         .to.be.false
 
-                    expect(enhancedAsyncOriginal.isAsync)
-                        .to.be.true
-                    expect(enhancedAsyncMiddle.isAsync)
-                        .to.be.true
-                    expect(enhancedAsyncOriginalMiddle.isAsync)
-                        .to.be.true
+                    for (let i = 0; i < asyncChains.length; i++) {
+                        const enhanced = asyncChains[i]
 
-                    expect(enhancedAsyncEnd.isAsync)
-                        .to.be.true
-                    expect(enhancedAsyncMiddleEnd.isAsync)
-                        .to.be.true
-                    expect(enhancedAsyncOriginalEnd.isAsync)
-                        .to.be.true
-                    expect(enhancedAsyncOriginalMiddleEnd.isAsync)
-                        .to.be.true
+                        expect(enhanced.isAsync)
+                            .to.be.true
+                    }
+                })
+                specify('#layers read-only array', function () {
+                    for (let i = 0; i < enhancedChains.length; i++) {
+                        const enhanced = enhancedChains[i]
+                        const layers = enhanced.layers
+                        expect(layers)
+                            .to.be.an('array')
+
+                        enhanced.layers = Array(100)
+                        expect(enhanced.layers.length)
+                            .lengthOf.to.be.eq(layers.length)
+                    }
+                })
+                specify('#originalGeneratorFunction read-only GeneratorFunction/AsyncGeneratorFunction', function () {
+                    for (let i = 0; i < originalAsync.length; i++) {
+                        const enhanced = originalAsync[i]
+                        const originalGeneratorFunction = enhanced.originalGeneratorFunction
+
+                        expect(isAsyncGeneratorFunction(originalGeneratorFunction), `Must be AsyncGeneratorFunction: ${i}`)
+                            .to.be.true
+
+                        enhanced.originalGeneratorFunction = async function* () { }
+                        expect(enhanced.originalGeneratorFunction)
+                            .to.be.eq(originalGeneratorFunction)
+                    }
+
+                    // with original-synchronous EnhancedGeneratorFunctions
+                    for (let i = 0; i < originalSync.length; i++) {
+                        const enhanced = originalSync[i]
+                        const originalGeneratorFunction = enhanced.originalGeneratorFunction
+
+                        expect(isGeneratorFunction(originalGeneratorFunction), `Must be GeneratorFunction`)
+                            .to.be.true
+
+                        enhanced.originalGeneratorFunction = function* () { }
+                        expect(enhanced.originalGeneratorFunction)
+                            .to.be.eq(originalGeneratorFunction)
+                    }
                 })
 
                 it(`Should include additional enhance methods: ${methods}`, function () {
                     for (let i = 0; i < enhancedChains.length; i++) {
                         const enhanced = enhancedChains[i]
                         for (const method of methods) {
-                            expect(isFunction(enhanced[method]), `enhanced Must have method: #${method}`)
+                            expect(isFunction(enhanced[method]), `Enhanced Must have method: #${method}`)
                                 .to.be.true
                         }
                     }
                 })
 
-            })
-
-            describe('If chain`s original generator function is synchronous and it not contains async layers', function () {
-                it('Should be instance of GeneratorFunction', function () {
-                    const enhanced = enhancedSync
-                    expect(isGeneratorFunction(enhanced))
-                        .to.be.true
-                })
-            })
-
-            describe('If chain contains async layers or async original generator function', function () {
-                const asyncChains = [
-                    enhancedAsyncOriginal,
-                    enhancedAsyncMiddle,
-                    enhancedAsyncOriginalMiddle,
-
-                    enhancedAsyncEnd,
-                    enhancedAsyncMiddleEnd,
-                    enhancedAsyncOriginalEnd,
-                    enhancedAsyncOriginalMiddleEnd,
-                ]
-
-                it('Should be instance of AsyncGeneratorFunction', function () {
-                    for (const enhanced of asyncChains) {
-                        expect(isAsyncGeneratorFunction(enhanced))
+                describe('If chain`s original generator function is synchronous and it not contains async layers', function () {
+                    it('Should be instance of GeneratorFunction', function () {
+                        const enhanced = enhancedSync
+                        expect(isGeneratorFunction(enhanced))
                             .to.be.true
-                    }
+                    })
+                })
+
+                describe('If chain contains async layers or async original generator function', function () {
+                    it('Should be instance of AsyncGeneratorFunction', function () {
+                        for (const enhanced of asyncChains) {
+                            expect(isAsyncGeneratorFunction(enhanced))
+                                .to.be.true
+                        }
+                    })
                 })
             })
 
-            describe('behaviour', function () {
-                const syncLayers = [
-                    {
-                        type: 'map',
-                        func: (v, i) => {
-                            expect(v).to.be.eq(values[i])
-                            return v + 10
+            describe('Behaviour', function () {
+                describe('#continue', function () {
+                    it('Should skip rest of layers chain, YIELD current value, and continue generation', async function () {
+                        let gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .continue((v, i) => {
+                                return i === 1
+                            })
+                            .map(v => v + 10)()
+
+
+                        let resultVals = []
+                        for (const v of gen) {
+                            resultVals.push(v)
                         }
-                    },
-                    {
-                        type: 'every',
-                        func: v => true
-                    },
-                    {
-                        type: 'forEach',
-                        func: (v, i) => {
-                            const o = 10 + 10
-                            expect(v).to.be.eq(values[i] + 10)
-                            // console.log('Testing Map')
+                        expect(resultVals).to.be.lengthOf(values.length)
+                        expect(resultVals[0]).to.be.eq(values[0] + 20)
+                        expect(resultVals[1]).to.be.eq(values[1] + 10)
+                        expect(resultVals[2]).to.be.eq(values[2] + 20)
+
+                        gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .continue(async (v, i) => {
+                                return i === 1
+                            })
+                            .map(async v => v + 10)()
+
+
+                        resultVals = []
+                        for await (const v of gen) {
+                            resultVals.push(v)
                         }
-                    },
-                    {
-                        type: 'findIndex',
-                        func: v => false
-                    },
-                    {
-                        type: 'some',
-                        func: (v, i) => {
-                            // console.log(v, i)
-                            // console.log(values)
-                            expect(v).to.be.eq(values[i] + 10)
-                            return false
+                        expect(resultVals).to.be.lengthOf(values.length)
+                        expect(resultVals[0]).to.be.eq(values[0] + 20)
+                        expect(resultVals[1]).to.be.eq(values[1] + 10)
+                        expect(resultVals[2]).to.be.eq(values[2] + 20)
+
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .continue(async (v, i) => {
+                                return i === 1
+                            })
+                            .map(async v => v + 10)()
+
+
+                        resultVals = []
+                        for await (const v of gen) {
+                            resultVals.push(v)
                         }
-                    },
-                ]
-                const asyncLayers = [
-                    {
-                        type: 'map',
-                        func: async (v, i) => {
-                            expect(v).to.be.eq(values[i] + 10)
-                            return Promise.resolve(v + 10)
+                        expect(resultVals).to.be.lengthOf(values.length)
+                        expect(resultVals[0]).to.be.eq(values[0] + 20)
+                        expect(resultVals[1]).to.be.eq(values[1] + 10)
+                        expect(resultVals[2]).to.be.eq(values[2] + 20)
+
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .continue((v, i) => {
+                                return i === 1
+                            })
+                            .map(v => v + 10)()
+
+
+                        resultVals = []
+                        for await (const v of gen) {
+                            resultVals.push(v)
                         }
-                    },
-                    {
-                        type: 'find',
-                        func: (v, i) => {
+                        expect(resultVals).to.be.lengthOf(values.length)
+                        expect(resultVals[0]).to.be.eq(values[0] + 20)
+                        expect(resultVals[1]).to.be.eq(values[1] + 10)
+                        expect(resultVals[2]).to.be.eq(values[2] + 20)
+                    })
+                })
+
+                describe('#skip', function () {
+                    it('Should skip rest of layers chain, SKIP YIELD of current value, and continue generation', async function () {
+                        let gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .skip((v, i) => {
+                                return i === 1
+                            })
+                            .map(v => v + 10)()
+
+
+                        let resultVals = []
+                        for (const v of gen) {
+                            resultVals.push(v)
+                        }
+                        expect(resultVals).to.be.lengthOf(values.length - 1)
+                        expect(resultVals[0]).to.be.eq(values[0] + 20)
+                        expect(resultVals[1]).to.be.eq(values[2] + 20)
+
+                        gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .skip(async (v, i) => {
+                                return i === 1
+                            })
+                            .map(async v => v + 10)()
+
+
+                        resultVals = []
+                        for await (const v of gen) {
+                            resultVals.push(v)
+                        }
+                        expect(resultVals).to.be.lengthOf(values.length - 1)
+                        expect(resultVals[0]).to.be.eq(values[0] + 20)
+                        expect(resultVals[1]).to.be.eq(values[2] + 20)
+
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .skip(async (v, i) => {
+                                return i === 1
+                            })
+                            .map(async v => v + 10)()
+
+
+                        resultVals = []
+                        for await (const v of gen) {
+                            resultVals.push(v)
+                        }
+                        expect(resultVals).to.be.lengthOf(values.length - 1)
+                        expect(resultVals[0]).to.be.eq(values[0] + 20)
+                        expect(resultVals[1]).to.be.eq(values[2] + 20)
+
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .skip((v, i) => {
+                                return i === 1
+                            })
+                            .map(v => v + 10)()
+
+
+                        resultVals = []
+                        for await (const v of gen) {
+                            resultVals.push(v)
+                        }
+                        expect(resultVals).to.be.lengthOf(values.length - 1)
+                        expect(resultVals[0]).to.be.eq(values[0] + 20)
+                        expect(resultVals[1]).to.be.eq(values[2] + 20)
+                    })
+                })
+
+                describe('#break', function () {
+                    it('Break EnhancedGenerator when truthy value returned', async function () {
+                        let gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .break((v, i) => {
+                                return i === 1
+                            })
+                            .map(v => v + 10)()
+
+
+                        let resultVals = []
+                        let yieldVal = gen.next()
+                        while (!yieldVal.done) {
+                            resultVals.push(yieldVal.value)
+                            yieldVal = gen.next()
+                        }
+
+                        expect(resultVals).to.be.lengthOf(1)
+                        expect(resultVals[0]).to.be.eq(values[0] + 20)
+                        expect(yieldVal.value).to.be.eq(values[1] + 10)
+
+                        gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .break(async (v, i) => {
+                                return i === 1
+                            })
+                            .map(async v => v + 10)()
+
+
+                        resultVals = []
+                        yieldVal = await gen.next()
+                        while (!yieldVal.done) {
+                            resultVals.push(yieldVal.value)
+                            yieldVal = await gen.next()
+                        }
+
+                        expect(resultVals).to.be.lengthOf(1)
+                        expect(resultVals[0]).to.be.eq(values[0] + 20)
+                        expect(yieldVal.value).to.be.eq(values[1] + 10)
+
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .break(async (v, i) => {
+                                return i === 1
+                            })
+                            .map(async v => v + 10)()
+
+
+                        resultVals = []
+                        yieldVal = await gen.next()
+                        while (!yieldVal.done) {
+                            resultVals.push(yieldVal.value)
+                            yieldVal = await gen.next()
+                        }
+
+                        expect(resultVals).to.be.lengthOf(1)
+                        expect(resultVals[0]).to.be.eq(values[0] + 20)
+                        expect(yieldVal.value).to.be.eq(values[1] + 10)
+
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .break((v, i) => {
+                                return i === 1
+                            })
+                            .map(v => v + 10)()
+
+
+                        resultVals = []
+                        yieldVal = await gen.next()
+                        while (!yieldVal.done) {
+                            resultVals.push(yieldVal.value)
+                            yieldVal = await gen.next()
+                        }
+
+                        expect(resultVals).to.be.lengthOf(1)
+                        expect(resultVals[0]).to.be.eq(values[0] + 20)
+                        expect(yieldVal.value).to.be.eq(values[1] + 10)
+                    })
+
+                    it('Not Break EnhancedGenerator when falsy value returned', async function () {
+                        let gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .break((v, i) => false)
+                            .map(v => v + 10)()
+
+
+                        let i = 0
+                        for (const v of gen) {
                             expect(v).to.be.eq(values[i] + 20)
-                            return false
+                            i++
                         }
-                    },
-                    {
-                        type: 'map',
-                        func: (v, i) => {
+
+                        gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .break(async (v, i) => false)
+                            .map(async v => v + 10)()
+
+
+                        i = 0
+                        for await (const v of gen) {
                             expect(v).to.be.eq(values[i] + 20)
-                            return v + 10
-                        }
-                    },
-                ]
-                const enhancedSync = syncLayers.reduce((enhanced, layer) => enhanced[layer.type](layer.func), enhancedSyncSingle)
-                const enhancedSyncToAsync = asyncLayers.reduce((enhanced, layer) => enhanced[layer.type](layer.func), enhancedSync)
-                const enhancedAsync = syncLayers.reduce((enhanced, layer) => enhanced[layer.type](layer.func), enhancedAsyncSingle)
-                const enhancedAsyncToAsync = asyncLayers.reduce((enhanced, layer) => enhanced[layer.type](layer.func), enhancedAsync)
-
-                describe('#some', function () {
-                    it('Short circuit when truthy value returned', async function () {
-                        let gen = enhancedSync
-                            .some((v, i) => {
-                                return i === 1
-                            })
-                            .map(v => v + 10)()
-
-
-                        let i = 0
-                        let yieldVal = gen.next()
-                        while (!yieldVal.done) {
                             i++
-                            yieldVal = gen.next()
                         }
-                        expect(i, `Must short circuit on index: 1`).to.be.eq(1)
-                        expect(yieldVal.value, `value must be 12, i.e. last maping of iteration must not be performed`).to.be.eq(12)
 
-                        gen = enhancedSync
-                            .some(async (v, i) => {
-                                return i === 1
-                            })
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .break(async (v, i) => false)
+                            .map(async v => v + 10)()
+
+
+                        i = 0
+                        for await (const v of gen) {
+                            expect(v).to.be.eq(values[i] + 20)
+                            i++
+                        }
+
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .break((v, i) => false)
                             .map(v => v + 10)()
 
 
                         i = 0
-                        yieldVal = await gen.next()
-                        while (!yieldVal.done) {
+                        for await (const v of gen) {
+                            expect(v).to.be.eq(values[i] + 20)
                             i++
-                            yieldVal = await gen.next()
                         }
-                        expect(i, `Must short circuit on index: 1`).to.be.eq(1)
-                        expect(yieldVal.value, `value must be 12, i.e. last maping of iteration must not be performed`).to.be.eq(12)
-
-                        gen = enhancedAsync
-                            .some((v, i) => {
-                                return i === 1
-                            })
-                            .map(v => v + 10)()
-
-
-                        i = 0
-                        yieldVal = await gen.next()
-                        while (!yieldVal.done) {
-                            i++
-                            yieldVal = await gen.next()
-                        }
-                        expect(i, `Must short circuit on index: 1`).to.be.eq(1)
-                        expect(yieldVal.value, `value must be 12, i.e. last maping of iteration must not be performed`).to.be.eq(12)
-                    })
-                })
-
-                describe('#every', function () {
-                    it('Short circuit when truthy value returned', async function () {
-                        let gen = enhancedSync
-                            .every((v, i) => {
-                                return i === 1 ? false : true
-                            })
-                            .map(v => v + 10)()
-
-
-                        let i = 0
-                        let yieldVal = gen.next()
-                        while (!yieldVal.done) {
-                            i++
-                            yieldVal = gen.next()
-                        }
-                        expect(i, `Must short circuit on index: 1`).to.be.eq(1)
-                        expect(yieldVal.value, `value must be 12, i.e. last maping of iteration must not be performed`).to.be.eq(12)
-
-                        gen = enhancedSync
-                            .every(async (v, i) => {
-                                return i === 1 ? false : true
-                            })
-                            .map(v => v + 10)()
-
-
-                        i = 0
-                        yieldVal = await gen.next()
-                        while (!yieldVal.done) {
-                            i++
-                            yieldVal = await gen.next()
-                        }
-                        expect(i, `Must short circuit on index: 1`).to.be.eq(1)
-                        expect(yieldVal.value, `value must be 12, i.e. last maping of iteration must not be performed`).to.be.eq(12)
-
-                        gen = enhancedAsync
-                            .every((v, i) => {
-                                return i === 1 ? false : true
-                            })
-                            .map(v => v + 10)()
-
-
-                        i = 0
-                        yieldVal = await gen.next()
-                        while (!yieldVal.done) {
-                            i++
-                            yieldVal = await gen.next()
-                        }
-                        expect(i, `Must short circuit on index: 1`).to.be.eq(1)
-                        expect(yieldVal.value, `value must be 12, i.e. last maping of iteration must not be performed`).to.be.eq(12)
-                    })
-                })
-
-                describe('#find', function () {
-                    it('Short circuit when truthy value returned', async function () {
-                        let gen = enhancedSync
-                            .find((v, i) => {
-                                return i === 1
-                            })
-                            .map(v => v + 10)()
-
-
-                        let i = 0
-                        let yieldVal = gen.next()
-                        while (!yieldVal.done) {
-                            i++
-                            yieldVal = gen.next()
-                        }
-                        expect(i, `Must short circuit on index: 1`).to.be.eq(1)
-                        expect(yieldVal.value, `value must be 12, i.e. last maping of iteration must not be performed`).to.be.eq(12)
-
-                        gen = enhancedSync
-                            .find(async (v, i) => {
-                                return i === 1
-                            })
-                            .map(v => v + 10)()
-
-
-                        i = 0
-                        yieldVal = await gen.next()
-                        while (!yieldVal.done) {
-                            i++
-                            yieldVal = await gen.next()
-                        }
-                        expect(i, `Must short circuit on index: 1`).to.be.eq(1)
-                        expect(yieldVal.value, `value must be 12, i.e. last maping of iteration must not be performed`).to.be.eq(12)
-
-                        gen = enhancedAsync
-                            .find((v, i) => {
-                                return i === 1
-                            })
-                            .map(v => v + 10)()
-
-
-                        i = 0
-                        yieldVal = await gen.next()
-                        while (!yieldVal.done) {
-                            i++
-                            yieldVal = await gen.next()
-                        }
-                        expect(i, `Must short circuit on index: 1`).to.be.eq(1)
-                        expect(yieldVal.value, `value must be 12, i.e. last maping of iteration must not be performed`).to.be.eq(12)
-                    })
-                })
-                
-                describe('#findIndex', function () {
-                    it('Short circuit when truthy value returned', async function () {
-                        let gen = enhancedSync
-                            .findIndex((v, i) => {
-                                return i === 1
-                            })
-                            .map(v => v + 10)()
-
-
-                        let i = 0
-                        let yieldVal = gen.next()
-                        while (!yieldVal.done) {
-                            i++
-                            yieldVal = gen.next()
-                        }
-                        expect(i, `Must short circuit on index: 1`).to.be.eq(1)
-                        expect(yieldVal.value, `value must be 1, i.e. last maping of iteration must not be performed`).to.be.eq(1)
-
-                        gen = enhancedSync
-                            .findIndex(async (v, i) => {
-                                return i === 1
-                            })
-                            .map(v => v + 10)()
-
-
-                        i = 0
-                        yieldVal = await gen.next()
-                        while (!yieldVal.done) {
-                            i++
-                            yieldVal = await gen.next()
-                        }
-                        expect(i, `Must short circuit on index: 1`).to.be.eq(1)
-                        expect(yieldVal.value, `value must be 1, i.e. last maping of iteration must not be performed`).to.be.eq(1)
-
-                        gen = enhancedAsync
-                            .findIndex((v, i) => {
-                                return i === 1
-                            })
-                            .map(v => v + 10)()
-
-
-                        i = 0
-                        yieldVal = await gen.next()
-                        while (!yieldVal.done) {
-                            i++
-                            yieldVal = await gen.next()
-                        }
-                        expect(i, `Must short circuit on index: 1`).to.be.eq(1)
-                        expect(yieldVal.value, `value must be 1, i.e. last maping of iteration must not be performed`).to.be.eq(1)
                     })
                 })
 
                 describe('#map', function () {
-                    context('When original is GeneratorFunction', function () {
-                        it('Should correctly map values and set next layer call arguments', async function () {
-                            let i = 0
-                            for (const val of enhancedSync()) {
-                                expect(val).to.be.eq(values[i] + 10)
-                                i++
-                            }
+                    it('Should correctly map values', async function () {
+                        let gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .break((v, i) => false)
+                            .map(v => v + 10)()
 
-                            i = 0
-                            for await (const val of enhancedSyncToAsync()) {
-                                expect(val).to.be.eq(values[i] + 30)
-                                i++
-                            }
-                        })
-                        it('Should not chainge return values', async function () {
-                            let gen = enhancedSync()
+                        let i = 0
+                        for (const val of gen) {
+                            expect(val).to.be.eq(values[i] + 20)
+                            i++
+                        }
+                        expect(i).to.be.eq(values.length)
 
-                            let yieldVal = gen.next()
-                            while (!yieldVal.done) {
-                                yieldVal = gen.next()
-                            }
-                            let returnedValue = yieldVal.value
-                            expect(returnedValue).to.be.eq('hey')
+                        gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .break(async (v, i) => false)
+                            .map(async v => v + 10)()
 
-                            // // // When some is async
-                            gen = enhancedSyncToAsync()
+                        i = 0
+                        for await (const val of gen) {
+                            expect(val).to.be.eq(values[i] + 20)
+                            i++
+                        }
+                        expect(i).to.be.eq(values.length)
 
-                            yieldVal = await gen.next()
-                            while (!yieldVal.done) {
-                                yieldVal = await gen.next()
-                            }
-                            returnedValue = yieldVal.value
-                            expect(returnedValue).to.be.eq('hey')
-                        })
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .break(async (v, i) => false)
+                            .map(async v => v + 10)()
+
+                        i = 0
+                        for await (const val of gen) {
+                            expect(val).to.be.eq(values[i] + 20)
+                            i++
+                        }
+                        expect(i).to.be.eq(values.length)
+
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .break((v, i) => false)
+                            .map(v => v + 10)()
+
+                        i = 0
+                        for await (const val of gen) {
+                            expect(val).to.be.eq(values[i] + 20)
+                            i++
+                        }
+                        expect(i).to.be.eq(values.length)
                     })
+                    it('Should not chainge return values', async function () {
+                        let gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .break((v, i) => false)
+                            .map(v => v + 10)()
 
-                    context('When origina is AsyncGeneratorFunction', function () {
-                        it('Should correctly map values and set next layer call arguments', async function () {
-                            let i = 0
-                            for await (const val of enhancedAsync()) {
-                                expect(val).to.be.eq(values[i] + 10)
-                                i++
-                            }
 
-                            i = 0
-                            for await (const val of enhancedAsyncToAsync()) {
-                                expect(val).to.be.eq(values[i] + 30)
-                                i++
-                            }
-                        })
-                        it('Should not chainge return values', async function () {
-                            let gen = enhancedAsync()
+                        let yieldVal = gen.next()
+                        while (!yieldVal.done) {
+                            yieldVal = gen.next()
+                        }
 
-                            let yieldVal = await gen.next()
-                            while (!yieldVal.done) {
-                                yieldVal = await gen.next()
-                            }
-                            let returnedValue = yieldVal.value
-                            expect(returnedValue).to.be.eq('hey')
+                        currentReturnedValue = yieldVal.value
+                        expect(currentReturnedValue).to.be.eq(returnedValue)
 
-                            // // // When some is async
-                            gen = enhancedAsyncToAsync()
+                        gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .break(async (v, i) => false)
+                            .map(async v => v + 10)()
 
+
+                        yieldVal = await gen.next()
+                        while (!yieldVal.done) {
                             yieldVal = await gen.next()
-                            while (!yieldVal.done) {
-                                yieldVal = await gen.next()
-                            }
-                            returnedValue = yieldVal.value
-                            expect(returnedValue).to.be.eq('hey')
-                        })
+                        }
+
+                        currentReturnedValue = yieldVal.value
+                        expect(currentReturnedValue).to.be.eq(returnedValue)
+
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .break(async (v, i) => false)
+                            .map(async v => v + 10)()
+
+
+                        yieldVal = await gen.next()
+                        while (!yieldVal.done) {
+                            yieldVal = await gen.next()
+                        }
+
+                        currentReturnedValue = yieldVal.value
+                        expect(currentReturnedValue).to.be.eq(returnedValue)
+
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .break((v, i) => false)
+                            .map(v => v + 10)()
+
+
+                        yieldVal = await gen.next()
+                        while (!yieldVal.done) {
+                            yieldVal = await gen.next()
+                        }
+                        currentReturnedValue = yieldVal.value
+                        expect(currentReturnedValue).to.be.eq(returnedValue)
+                    })
+                    it('Should correctly set next layer call arguments', async function () {
+                        let gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .skip((v, i) => {
+                                expect(v).to.be.eq(values[i] + 10)
+                                return false
+                            })
+                            .map(v => v + 10)()
+
+
+                        for (const _ of gen);
+
+                        gen = enhancedSyncSingle
+                            .map(v => v + 10)
+                            .skip(async (v, i) => {
+                                expect(v).to.be.eq(values[i] + 10)
+                                return false
+                            })
+                            .map(async v => v + 10)()
+
+
+                        for await (const _ of gen);
+
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .skip(async (v, i) => {
+                                expect(v).to.be.eq(values[i] + 10)
+                                return false
+                            })
+                            .map(async v => v + 10)()
+
+
+                        for await (const _ of gen);
+
+                        gen = enhancedAsyncSingle
+                            .map(v => v + 10)
+                            .skip((v, i) => {
+                                expect(v).to.be.eq(values[i] + 10)
+                                return false
+                            })
+                            .map(v => v + 10)()
+
+
+                        for await (const _ of gen);
                     })
                 })
             })
         })
     })
 })
-
-
-// function 
