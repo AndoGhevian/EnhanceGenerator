@@ -153,7 +153,7 @@ console.log(context)
 If Your original **GeneratorFunction** needs _context_ - **this**, it will be passed through the
 **enhanced** one to it. So the behaviour will be the same for each. e.g.
 ```javascript
-const { enhance } = require('../dist')
+const { enhance } = require('enhance-generator')
 
 function* genFunc() {
     yield 1 * this
@@ -176,7 +176,7 @@ for (const _ of enhance(genFunc)
 
 You can also automate **next(arg)** call`s argument calculations
 ```javascript
-const { enhance } = require('../dist')
+const { enhance } = require('enhance-generator')
 
 function* genFunc() {
     let nextArg = yield 'enter loop'
@@ -203,7 +203,7 @@ of the last one will be used to call **next(arg)** on the **Origin Generator**.
 
 Example with multiple **useNext** layers
 ```javascript
-const { enhance } = require('../dist')
+const { enhance } = require('enhance-generator')
 
 function* genFunc() {
     let nextArg = yield 'enter loop'
