@@ -1,8 +1,7 @@
 # EnhanceGenerator
 ### Supported for ES2018 and above
 
-If you want some middlewares **(sync/async)** for **GeneratorFunctions**(**AsyncGeneratorFunctions**) which will be called
-on each **yield** value, then this package is for you.
+If you want some middlewares and loop controle methods **(sync/async)** for **GeneratorFunctions**(**AsyncGeneratorFunctions**), then this package is for you.
 
 ## Usage
 Lets say we have **GeneratorFunction**:
@@ -20,138 +19,225 @@ const { enhance } = require('enhance-generator')
 
 // New GeneratorFunction with additional methods on it.
 const enhanced = enhance(genFunc)
-  .map(nth => `${nth} man`)
+  .map((value, index) => value * 100)
+  .forEach((value, index) => {
+    console.log(`index: ${index}, value: ${value}`)
+  })
 
 
+for(const _ of enhanced());
+// will be printed:
+// index: 0, value: 100
+// index: 1, value: 200
+// index: 2, value: 300
+
+// // Or You can manually call **next**.
 const gen = enhanced()
-for(const val of gen) {
-    console.log(val)
-}
-// will be printed:
-// 1 man
-// 2 man
-// 3 man
+while(!gen.next(/* nextArg */).done); // nextArg will be passed to original Generator.
 ```
+You can **break** loop, yield value and **continue** iteration, or **skip** both iteration rest and yield stage.
+- **continue**
+    ```javascript
+    const { enhance } = require('enhance-generator')
 
-Or You can manually call **next**.
+    const values = []
+    for (const val of enhance(genFunc)
+        .continue((value, index) => index === 1) // skip rest of middlewares when index === 1   
+        .forEach((value, index) => {
+            console.log(`index: ${index}`)
+        })()
+    ) {
+      values.push(val)
+    }
+    // will be printed:
+    // index: 0
+    // index: 2
+
+    console.log(values)
+    // will be yielded
+    // [ 1, 2, 3 ]
+    ```
+- **break**
+    ```javascript
+    const { enhance } = require('enhance-generator')
+
+    for (const _ of enhance(genFunc)
+        .break((value, index) => index === 1) // break on second forEach(index===1)
+        .forEach((value, index) => {
+            console.log(`index: ${index}`)
+        })()
+    );
+    // will be printed:
+    // index: 0
+
+    // will be yielded
+    // [ 1 ]
+    ```
+- **skip**
+    ```javascript
+    const { enhance } = require('enhance-generator')
+
+    for (const _ of enhance(genFunc)
+        .skip((value, index) => index === 1) // skip both rest of middlewares and yield stage   
+        .forEach((value, index) => {
+            console.log(`index: ${index}`)
+        })()
+    );
+    // will be printed:
+    // index: 0
+    // index: 2
+
+    // will be yielded
+    // [ 1, 3 ]
+    ```
+
+You can provide _context_ - **this** both to your GeneratorFunction and to
+middlewares you use
 ```javascript
 const { enhance } = require('enhance-generator')
 
+const context = {
+    count: 0
+}
 const enhanced = enhance(genFunc)
-  .map(val => val * 1000)
+    .map((value, index) => value * 100)
+    .forEach(function (value, index) {
+        this.count++
+    })
 
+for (const _ of enhanced
+    .useThis(() => context)()
+);
 
-const gen = enhanced()
-let nextVal = gen.next(/* nextArg */)
-while(!nextVal.done) {
-    console.log(nextVal.value)
-    nextVal = gen.next(/* nextArg */) // nextArg will be passed to original Generator.
-}
+console.log(context)
 // will be printed:
-// 1000
-// 2000
-// 3000
+// { count: 3 }
 ```
-You can make also some desigions on **yielded** values,
-and when some **condition (find, some...)** is fulfilled, **Generator** will return.
+Only the last **useThis** of the chain will be called and
+it will be called at the very beginning of the loop -
+after **GeneratorFunction() call** and before first **next() call**.
+
+All this methods are **immutable**, i.e. each call of this methods **(map, forEach...)**
+will return a new **(Async)GeneratorFunction** with additional middleware layer.
+
+You can also bind _context_ - **this** to layer, by providing it as second argument
+to **enhance methods**, in this case calls to **useThis** will not be able to change
+context of that particular layer.
 ```javascript
 const { enhance } = require('enhance-generator')
 
-function* genFunc(start) {
-    yield start ? start : 1
-    yield 2
-    yield 3
-    return 'finish'
+const bindedContext = {
+    count: 0
 }
 const enhanced = enhance(genFunc)
-  .find(val => val === 2)
+    .map((value, index) => value * 100)
+    .forEach(function (value, index) {
+        this.count++
+    }, bindedContext)
 
-
-const gen = enhanced('start value')
-let nextVal
-while(nextVal = gen.next(), !nextVal.done) {
-    console.log(nextVal.value)
+const context = {
+    count: 0
 }
+for (const _ of enhanced
+    .useThis(() => context)() // useThis will not be able to change binded contexts
+);
 
-console.log(nextVal)
+console.log(bindedContext)
 // will be printed:
-// start value
-// { value: 2, done: true }
+// { count: 3 }
+console.log(context)
+// will be printed:
+// { count: 0 }
 ```
 
-You can make chains of both **maps** and **conditions**:
-> Note: **Conditions** will be chained with **Logical OR** with **short-circuit** evaluation.
+If Your original **GeneratorFunction** needs _context_ - **this**, it will be passed through the
+**enhanced** one to it. So the behaviour will be the same for each. e.g.
 ```javascript
-const { enhance } = require('enhance-generator')
+const { enhance } = require('../dist')
 
 function* genFunc() {
-    yield 1
-    yield 2
-    yield 3
+    yield 1 * this
+    yield 2 * this
+    yield 3 * this
     return 'finish'
 }
-const enhanced = enhance(genFunc)
-  .map(val => val * 100)
-  .map((val, index) => val + index)
-  .find(val => val === 201) // will short-circuit on value 201.
-  .every(val => val !== 400) // if false, will be immediately returned with current value.
+const context = 100
 
-
-const gen = enhanced()
-let nextVal
-while(nextVal = gen.next(), !nextVal.done) {
-    console.log(nextVal.value)
-}
-console.log(nextVal)
-// will be printed:
+for (const _ of enhance(genFunc)
+    .forEach(function (value, index) {
+        console.log(value)
+    }).call(context)
+);
+// will be printed
 // 100
-// { value: 201, done: true }
+// 200
+// 300
 ```
 
-Theres also method for side effects - **forEach**, which returned values will be simply throwed away.
-
-All this methods are **immutable**, i.e. each call of this methods **(map, some...)**
-will return a new **GeneratorFunction** with additional middleware layer.
-
-You can pass **this context** to all given methods **(map, some...)** with second argument -
-**thisArg**
-> Note: If its not provided, **undefined** will be used. The **this** value ultimately observable by callback is determined according to [the usual rules for determining the this seen by a function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/this).
+You can also automate **next(arg)** call`s argument calculations
 ```javascript
-const { enhance } = require('enhance-generator')
+const { enhance } = require('../dist')
 
 function* genFunc() {
-    yield 1
-    yield 2
-    yield 3
-    return 'finish'
+    let nextArg = yield 'enter loop'
+    nextArg = yield nextArg
+    nextArg = yield nextArg
+    return 'exit loop'
 }
-const enhanced = enhance(genFunc)
-  .map(function (val) { 
-    return this.prop += val
-    }, { prop: 0 })
 
-const gen = enhanced()
-for(const val of gen) {
-    console.log(val)
-}
-// will be printed:
+let nextArg = 0
+for (const _ of enhance(genFunc)
+    .useNext(() => ++nextArg)
+    .forEach(function (value, index) {
+        console.log(value)
+    })()
+);
+// will be printed
+// 'enter loop'
 // 1
+// 2
+```
+**useNext** layers will be called before each iteration except first one, in the same order
+they occure in the chain, before all other layers. The returned value
+of the last one will be used to call **next(arg)** on the **Origin Generator**.
+
+Example with multiple **useNext** layers
+```javascript
+const { enhance } = require('../dist')
+
+function* genFunc() {
+    let nextArg = yield 'enter loop'
+    nextArg = yield nextArg
+    nextArg = yield nextArg
+    return 'exit loop'
+}
+
+let nextArg = 0
+for (const _ of enhance(genFunc)
+    .useNext(() => ++nextArg)
+    .useNext(() => ++nextArg)
+    .forEach(function (value, index) {
+        console.log(value)
+    })
+    .useNext(() => ++nextArg)()
+);
+// will be printed
+// 'enter loop'
 // 3
 // 6
 ```
+> NOTE: The first call **next(arg)** just enter the loop, it`s argument thrown
+by Generator itself, so the first iteration is skiped.
 
-If Your original **GeneratorFunction** use **this context**, it will be passed through the
-**enhanced** one to it. So the behaviour will be the same for each.
 
-You can use this **Enhanced GeneratorFunctions** as the original ones. They are simple **GeneratorFunctions** with some additional methods on them, So you can pass them
-to any library that accepts **GeneratorFunctions**.
-You can check if some function is **Enhanced Generator Function** with property **isEnhancedGeneratorFunction** on it.
+**EnhancedGeneratorFunctions** are simple **GeneratorFunctions** Or **AsyncGeneratorFunctions**
+with some additional methods on them, So you can pass them to any library
+that accepts **GeneratorFunctions** Or **AsyncGeneratorFunctions**
 
 ### Async
 You can Use **async functions**, in layer addition methods **(map,forEach...)**, also you can use **AsyncGeneratorFunctions** when calling **enhance(generatorFunction)**. Saying **async**,
-we mean explicit usage of **async keyword**. From the point of time you use
-**AsyncFunction**  or **AsyncGeneratorFunction**, resulting **EnhancedGeneratorFunctions** will be **async**
-as well. You can check if it is with property **isAsync** on returned **EnhancedGeneratorFunctions**.
+we mean explicit usage of **async keyword**. From the point of the time that you used
+**AsyncFunction**  or **AsyncGeneratorFunction**, resulting **EnhancedGeneratorFunctions** will be **async** as well. You can check if it is with property **isAsync** on returned **EnhancedGeneratorFunctions**.
 > NOTE: In this cases you must be careful and be sure you call them with **for await of...**
 and not with **for of...**.
 
