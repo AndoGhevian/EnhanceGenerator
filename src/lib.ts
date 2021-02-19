@@ -15,9 +15,20 @@ export type SymbolLayers = typeof SymbolLayers
 export const SymbolGenFunc = Symbol('SymbolGenFunc')
 export type SymbolGenFunc = typeof SymbolGenFunc
 
+/**Symbol of UseThis layer */
+export const SymbolUseThis = Symbol('SymbolUseThis')
+export type SymbolUseThis = typeof SymbolUseThis
+
+/**Symbol of UseNext layers */
+export const SymbolUseNext = Symbol('SymbolUseNext')
+export type SymbolUseNext = typeof SymbolUseNext
+
 /**Middlware layer types */
 export type Layers = 'map' | 'forEach' | 'break' | 'continue' | 'skip'
 export const Layers: Layers[] = ['map', 'forEach', 'break', 'continue', 'skip']
+
+export type AllLayers = Layers | 'useNext' | 'useThis'
+export const AllLayers: AllLayers[] = ['map', 'forEach', 'break', 'continue', 'skip', 'useNext', 'useThis']
 
 /**Middleware Layer */
 export interface Layer {
@@ -27,6 +38,28 @@ export interface Layer {
     handler: Function;
     /****this** arg for layer handler */
     thisArg: any;
+    /**Indicates if handler is AsyncFunction */
+    isAsync: boolean;
+}
+
+/**UseNextLayer Middleware */
+export interface UseNextLayer {
+    /**Layer type */
+    layer: 'useNext';
+    /**Layer handler */
+    handler: Function;
+    /****this** arg for layer handler */
+    thisArg: any;
+    /**Indicates if handler is AsyncFunction */
+    isAsync: boolean;
+}
+
+/**UseNextLayer Middleware */
+export interface UseThisLayer {
+    /**Layer type */
+    layer: 'useThis';
+    /**Layer handler */
+    handler: Function;
     /**Indicates if handler is AsyncFunction */
     isAsync: boolean;
 }
@@ -63,6 +96,16 @@ export interface AsyncEnhancedGeneratorFunction<T = unknown, R = any, N = unknow
     break<U extends any = unknown>(predicate: (value: T, index: number) => U, thisArg?: any): AsyncEnhancedGeneratorFunction<T, T | R, N, C>;
     /**If predicate return truthy value, rest of the layers in the chain will be skiped, current value will **BE** yielded, and generator will continue  */
     continue<U extends any = any>(callbackfn: (value: T, index: number) => U, thisArg?: any): AsyncEnhancedGeneratorFunction<T, R, N, C>
+    /**
+     * Set the context - **this** for layers of EnhancedGeneratorFunction, before first iteration
+     * > NOTE: Only the last **useThis** will be executed
+     */
+    useThis<U extends any = unknown>(callbackfn: () => U): AsyncEnhancedGeneratorFunction<T, R, N, C>
+    /**
+     * Modifie argument of **next(arg)** call, before each iteration. It will skip the very first call of **next(arg)**
+     * > NOTE: **useNext**`s will be called in provided order, last result will be taken. 
+     */
+    useNext<U extends N, O extends N>(callbackfn: (value: T, index: number, next: N, lastUseNexts: O[]) => U, thisArg?: any): AsyncEnhancedGeneratorFunction<T, R, N, C>
     (...args: [...C]): AsyncGenerator<T, R, N>;
 }
 export interface EnhancedGeneratorFunction<T = unknown, R = any, N = unknown, C extends any[] = unknown[]> {
@@ -97,6 +140,20 @@ export interface EnhancedGeneratorFunction<T = unknown, R = any, N = unknown, C 
     continue<U extends any = unknown>(callbackfn: (value: T, index: number) => U, thisArg?: any):
         U extends Promise<any> ? AsyncEnhancedGeneratorFunction<T, R, N, C>
         : EnhancedGeneratorFunction<T, R, N, C>;
+    /**
+     * Set the context - **this** for layers of EnhancedGeneratorFunction, before first iteration
+     * > NOTE: Only the last **useThis** will be executed
+     */
+    useThis<U extends any = unknown>(callbackfn: () => U):
+        U extends Promise<any> ? AsyncEnhancedGeneratorFunction<T, R, N, C>
+        : EnhancedGeneratorFunction<T, R, N, C>;
+    /**
+     * Modifie argument of **next(arg)** call, before each iteration. It will skip the very first call of **next(arg)**
+     * > NOTE: **useNext**`s will be called in provided order, last result will be taken. 
+     */
+    useNext<U extends N, O extends N>(callbackfn: (value: T, index: number, next: N, lastUseNexts: O[]) => U, thisArg?: any):
+        U extends Promise<any> ? AsyncEnhancedGeneratorFunction<T, R, N, C>
+        : EnhancedGeneratorFunction<T, R, N, C>;
     (...args: [...C]): Generator<T, R, N>;
 }
 export type EnhancedGeneratorFunctionPrivate<T = unknown, R = any, N = unknown, C extends any[] = unknown[]> =
@@ -110,7 +167,11 @@ export type EnhancedGeneratorFunctionPrivate<T = unknown, R = any, N = unknown, 
                 [SymbolGenFunc]: (...args: any[]) => Generator | AsyncGenerator;
             }
         )
-    ) & { [SymbolLayers]: Layer[]; };
+    ) & {
+        [SymbolLayers]: Layer[];
+        [SymbolUseNext]: UseNextLayer[];
+        [SymbolUseThis]?: UseThisLayer;
+    };
 
 export const enhance: Enhance = function (generatorFunction) {
     const layers: Layer[] = []
@@ -122,15 +183,15 @@ export const enhance: Enhance = function (generatorFunction) {
         throw new Error('Please Provide (sync/async)GeneratorFunction, promise returning(yielding) functions PREFERED TO be specified with async keyword')
     }
 
-    return initEnhancedGeneratorFunction(originalGenFunc, layers, isOriginalAsync, isOriginalAsync) as any
+    return initEnhancedGeneratorFunction(originalGenFunc, layers, [], undefined, isOriginalAsync, isOriginalAsync) as any
 }
 
 // Layer Inserters created ones -
 const layerInserters: {
-    [P in Layers]: (this: EnhancedGeneratorFunctionPrivate, cb: Function, thisArg?: any) => EnhancedGeneratorFunctionPrivate;
+    [P in AllLayers]: (this: EnhancedGeneratorFunctionPrivate, cb: Function, thisArg?: any) => EnhancedGeneratorFunctionPrivate;
 } = {} as any
 
-for (const layer of Layers) {
+for (const layer of AllLayers) {
     layerInserters[layer] = function (handler, thisArg) {
         const originalGenFunc = this[SymbolGenFunc]
 
@@ -139,14 +200,36 @@ for (const layer of Layers) {
         if (!isLayerSync && !isLayerAsync) {
             throw new Error('Please Provide (sync/async)Function, promise returning functions PREFERED TO be specified with async keyword')
         }
-        const layers: Layer[] = [...this[SymbolLayers], {
-            layer,
-            handler,
-            thisArg,
-            isAsync: isLayerAsync,
-        }]
+        let layers = this[SymbolLayers]
+        let useNextLayers = this[SymbolUseNext]
+        let useThisLayer = this[SymbolUseThis]
 
-        return initEnhancedGeneratorFunction(originalGenFunc, layers, this.isOriginalAsync, this.isAsync || isLayerAsync)
+        switch (layer) {
+            case 'useThis':
+                useThisLayer = {
+                    layer,
+                    handler,
+                    isAsync: isLayerAsync,
+                }
+                break
+            case 'useNext':
+                useNextLayers = [...this[SymbolUseNext], {
+                    layer,
+                    handler,
+                    thisArg,
+                    isAsync: isLayerAsync,
+                }]
+                break
+            default:
+                layers = [...this[SymbolLayers], {
+                    layer,
+                    handler,
+                    thisArg,
+                    isAsync: isLayerAsync,
+                }]
+        }
+
+        return initEnhancedGeneratorFunction(originalGenFunc, layers, useNextLayers, useThisLayer, this.isOriginalAsync, this.isAsync || isLayerAsync)
     }
 }
 
@@ -154,6 +237,8 @@ for (const layer of Layers) {
 function initEnhancedGeneratorFunction(
     originalGenFunc: (...args: any) => Generator | AsyncGenerator,
     layers: Layer[],
+    useNextLayers: UseNextLayer[],
+    useThisLayer: UseThisLayer | undefined,
     isOriginalAsync: boolean,
     isAsync: boolean,
 ): EnhancedGeneratorFunctionPrivate {
@@ -162,6 +247,8 @@ function initEnhancedGeneratorFunction(
             this,
             originalGenFunc,
             layers,
+            useNextLayers,
+            useThisLayer,
             args,
             isOriginalAsync,
             isAsync,
@@ -181,6 +268,8 @@ function initEnhancedGeneratorFunction(
                 this,
                 originalGenFunc,
                 layers,
+                useNextLayers,
+                useThisLayer,
                 args,
                 isOriginalAsync,
                 isAsync,
@@ -199,7 +288,7 @@ function initEnhancedGeneratorFunction(
     enhancedGeneratorFunction.isEnhancedGeneratorFunction = true
     enhancedGeneratorFunction.isOriginalAsync = isOriginalAsync
     enhancedGeneratorFunction.isAsync = isAsync
-    for (const layer of Layers) {
+    for (const layer of AllLayers) {
         enhancedGeneratorFunction[layer] = layerInserters[layer] as any
     }
 
@@ -209,6 +298,12 @@ function initEnhancedGeneratorFunction(
     Object.defineProperty(enhancedGeneratorFunction, SymbolGenFunc, {
         value: originalGenFunc,
     })
+    Object.defineProperty(enhancedGeneratorFunction, SymbolUseThis, {
+        value: useThisLayer,
+    })
+    Object.defineProperty(enhancedGeneratorFunction, SymbolUseNext, {
+        value: useNextLayers,
+    })
     Object.defineProperties(enhancedGeneratorFunction, {
         isEnhancedGeneratorFunction: { enumerable: false },
         isOriginalAsync: { enumerable: false },
@@ -217,7 +312,8 @@ function initEnhancedGeneratorFunction(
             enumerable: false,
             get() {
                 return this[SymbolLayers].map((layer: any) => ({
-                    ...layer
+                    ...layer,
+                    thisArg: layer.thisArg !== null && layer.thisArg !== undefined ? true : false
                 }))
             },
         },
@@ -232,6 +328,8 @@ function initEnhancedGeneratorFunction(
         skip: { enumerable: false },
         break: { enumerable: false },
         continue: { enumerable: false },
+        useThis: { enumerable: false },
+        useNext: { enumerable: false },
     })
     return enhancedGeneratorFunction
 }
@@ -240,6 +338,8 @@ function enhancedGeneratorFunctionSketch(
     this: any,
     originalGenFunc: (...args: any) => Generator | AsyncGenerator,
     layers: Layer[],
+    useNextLayers: UseNextLayer[],
+    useThisLayer: UseThisLayer | undefined,
     originalGenFuncCallArgs: any[],
     isOriginalAsync: boolean,
     isAsync: boolean,
@@ -248,6 +348,10 @@ function enhancedGeneratorFunctionSketch(
 
     if (isAsync) {
         return (async function* () {
+            const globalThis = useThisLayer ?
+                (useThisLayer.isAsync ? await useThisLayer.handler() : useThisLayer.handler())
+                : undefined
+
             let nextArg: any
 
             let index = 0
@@ -267,7 +371,8 @@ function enhancedGeneratorFunctionSketch(
                 let skip = false
                 let skipAndYield = false
                 for (const { handler, layer, thisArg, isAsync } of layers) {
-                    const handlerResult = isAsync ? await handler.call(thisArg, modifiedNextVal, index) : handler.call(thisArg, modifiedNextVal, index)
+                    const callContext = thisArg ?? globalThis
+                    const handlerResult = isAsync ? await handler.call(callContext, modifiedNextVal, index) : handler.call(callContext, modifiedNextVal, index)
                     switch (layer) {
                         case 'map':
                             modifiedNextVal = handlerResult
@@ -298,6 +403,14 @@ function enhancedGeneratorFunctionSketch(
 
                 if (!skip) {
                     nextArg = yield modifiedNextVal
+                    let modifiedNextArg = nextArg
+                    const lastUseNexts = []
+                    for (const { handler, thisArg, isAsync } of useNextLayers) {
+                        const callContext = thisArg ?? globalThis
+                        modifiedNextArg = isAsync ? await handler(callContext, modifiedNextVal, index + 1, nextArg, lastUseNexts) : handler(callContext, modifiedNextVal, index + 1, nextArg, lastUseNexts)
+                        lastUseNexts.push(modifiedNextArg)
+                    }
+                    nextArg = modifiedNextArg
                 }
                 index++
             }
@@ -306,6 +419,10 @@ function enhancedGeneratorFunctionSketch(
 
     const syncGen = gen as Generator<unknown, any, unknown>
     return (function* () {
+        const globalThis = useThisLayer ?
+            useThisLayer.handler()
+            : undefined
+
         let nextArg: any
 
         let index = 0
@@ -319,7 +436,8 @@ function enhancedGeneratorFunctionSketch(
             let skip = false
             let skipAndYield = false
             for (const { handler, layer, thisArg } of layers) {
-                const handlerResult = handler.call(thisArg, modifiedNextVal, index)
+                const callContext = thisArg ?? globalThis
+                const handlerResult = handler.call(callContext, modifiedNextVal, index)
                 switch (layer) {
                     case 'map':
                         modifiedNextVal = handlerResult
@@ -350,6 +468,14 @@ function enhancedGeneratorFunctionSketch(
 
             if (!skip) {
                 nextArg = yield modifiedNextVal
+                let modifiedNextArg = nextArg
+                const lastUseNexts = []
+                for (const { handler, thisArg } of useNextLayers) {
+                    const callContext = thisArg ?? globalThis
+                    modifiedNextArg = handler(callContext, modifiedNextVal, index + 1, nextArg, lastUseNexts)
+                    lastUseNexts.push(modifiedNextArg)
+                }
+                nextArg = modifiedNextArg
             }
             index++
         }

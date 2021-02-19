@@ -451,6 +451,308 @@ describe('enhance', function () {
                     })
                 })
 
+                describe('#useThis', function () {
+                    it('Should be called last useThis layer, ones, before all iterations and set valid context', async function () {
+                        let gloablContext = ({
+                            count: 0
+                        })
+                        let gen = enhancedSyncSingle
+                            .useThis(function (v, i) {
+                                expect.fail('This Must not be called')
+                            })
+                            .map(v => v + 10)
+                            .useThis(function (v, i) {
+                                expect.fail('This Must not be called')
+                            })
+                            .forEach(function (v) {
+                                this.count++
+                            })
+                            .useThis(() => gloablContext)
+                            .map(v => v + 10)()
+
+                        for (const o of gen);
+                        expect(gloablContext.count).to.be.eq(3)
+
+                        gloablContext = ({
+                            count: 0
+                        })
+                        gen = enhancedSyncSingle
+                            .useThis(function (v, i) {
+                                expect.fail('This Must not be called')
+                            })
+                            .map(v => v + 10)
+                            .useThis(async function (v, i) {
+                                expect.fail('This Must not be called')
+                            })
+                            .forEach(function (v) {
+                                this.count++
+                            })
+                            .useThis(async () => gloablContext)
+                            .map(async v => v + 10)()
+
+                        for await (const o of gen);
+                        expect(gloablContext.count).to.be.eq(3)
+
+                        gloablContext = ({
+                            count: 0
+                        })
+                        gen = enhancedAsyncSingle
+                            .useThis(function (v, i) {
+                                expect.fail('This Must not be called')
+                            })
+                            .map(v => v + 10)
+                            .useThis(async function (v, i) {
+                                expect.fail('This Must not be called')
+                            })
+                            .forEach(function (v) {
+                                this.count++
+                            })
+                            .useThis(async () => gloablContext)
+                            .map(async v => v + 10)()
+
+                        for await (const o of gen);
+                        expect(gloablContext.count).to.be.eq(3)
+
+                        gloablContext = ({
+                            count: 0
+                        })
+                        gen = enhancedAsyncSingle
+                            .useThis(function (v, i) {
+                                expect.fail('This Must not be called')
+                            })
+                            .map(v => v + 10)
+                            .useThis(function (v, i) {
+                                expect.fail('This Must not be called')
+                            })
+                            .forEach(function (v) {
+                                this.count++
+                            })
+                            .useThis(() => gloablContext)
+                            .map(v => v + 10)()
+
+                        for await (const o of gen);
+                        expect(gloablContext.count).to.be.eq(3)
+                    })
+                })
+
+                describe('#useNext', function () {
+                    it('Should called before every iteration in provided order with valid arguments, But not in first', async function () {
+                        const genFunc = function* () {
+                            yield 1
+                            yield 2
+                            yield 3
+                            console.log('hey')
+                        }
+
+                        const genFuncAsync = async function* () {
+                            yield 1
+                            yield 2
+                            yield 3
+                            console.log('hey')
+                        }
+                        let counter = 0
+                        let gen = enhance(genFunc)
+                            .useNext(function (v, i, nextVal, lastUseNext) {
+                                expect(i).to.be.gt(0)
+                                if (i == 1) {
+                                    expect(nextVal).to.be.eq(2)
+                                }
+                                if (i == 1) {
+                                    expect(lastUseNext).to.be.lengthOf(0)
+                                }
+                                counter = counter - 2
+                                return 10
+                            })
+                            .map(v => v + 10)
+                            .forEach(function (v) {
+                                this.count++
+                            })
+                            .useNext(function (v, i, nextVal) {
+                                expect(i).to.be.gt(0)
+
+                                if (i == 1) {
+                                    expect(nextVal).to.be.eq(2)
+                                }
+                                if (i == 1) {
+                                    expect(lastUseNext).to.be.lengthOf(1)
+                                    expect(lastUseNext[0]).to.be.eq(10)
+                                }
+                                counter = 5 - counter
+                                return 100
+                            })
+                            .map(v => v + 10)()
+
+                        gen.next()
+                        expect(counter).to.be.eq(0)
+                        gen.next(2)
+                        expect(counter).to.be.eq(7)
+
+                        counter = 0
+                        gen = enhance(genFunc)
+                            .useNext(function (v, i, nextVal, lastUseNext) {
+                                expect(i).to.be.gt(0)
+                                if (i == 1) {
+                                    expect(nextVal).to.be.eq(2)
+                                }
+                                if (i == 1) {
+                                    expect(lastUseNext).to.be.lengthOf(0)
+                                }
+                                counter = counter - 2
+                                return 10
+                            })
+                            .map(v => v + 10)
+                            .forEach(function (v) {
+                                this.count++
+                            })
+                            .useNext(async function (v, i, nextVal) {
+                                expect(i).to.be.gt(0)
+                                if (i == 1) {
+                                    expect(nextVal).to.be.eq(2)
+                                }
+                                if (i == 1) {
+                                    expect(lastUseNext).to.be.lengthOf(1)
+                                    expect(lastUseNext[0]).to.be.eq(10)
+                                }
+                                counter = 5 - counter
+                                return 100
+                            })
+                            .map(v => v + 10)()
+
+                        await gen.next()
+                        expect(counter).to.be.eq(0)
+                        await gen.next(2)
+                        expect(counter).to.be.eq(7)
+
+                        counter = 0
+                        gen = enhance(genFuncAsync)
+                            .useNext(function (v, i, nextVal, lastUseNext) {
+                                expect(i).to.be.gt(0)
+                                if (i == 1) {
+                                    expect(nextVal).to.be.eq(2)
+                                }
+                                if (i == 1) {
+                                    expect(lastUseNext).to.be.lengthOf(0)
+                                }
+                                counter = counter - 2
+                                return 10
+                            })
+                            .map(v => v + 10)
+                            .forEach(function (v) {
+                                this.count++
+                            })
+                            .useNext(async function (v, i, nextVal) {
+                                expect(i).to.be.gt(0)
+                                if (i == 1) {
+                                    expect(nextVal).to.be.eq(2)
+                                }
+                                if (i == 1) {
+                                    expect(lastUseNext).to.be.lengthOf(1)
+                                    expect(lastUseNext[0]).to.be.eq(10)
+                                }
+                                counter = 5 - counter
+                                return 100
+                            })
+                            .map(async v => v + 10)()
+
+                        await gen.next()
+                        expect(counter).to.be.eq(0)
+                        await gen.next(2)
+                        expect(counter).to.be.eq(7)
+
+                        counter = 0
+                        gen = enhance(genFunc)
+                            .useNext(function (v, i, nextVal, lastUseNext) {
+                                if (i == 1) {
+                                    expect(nextVal).to.be.eq(2)
+                                }
+                                if (i == 1) {
+                                    expect(lastUseNext).to.be.lengthOf(0)
+                                }
+                                counter = counter - 2
+                                return 10
+                            })
+                            .map(v => v + 10)
+                            .forEach(function (v) {
+                                this.count++
+                            })
+                            .useNext(function (v, i, nextVal) {
+                                if (i == 1) {
+                                    expect(nextVal).to.be.eq(2)
+                                }
+                                if (i == 1) {
+                                    expect(lastUseNext).to.be.lengthOf(1)
+                                    expect(lastUseNext[0]).to.be.eq(10)
+                                }
+                                counter = 5 - counter
+                                return 100
+                            })
+                            .map(v => v + 10)()
+
+                        await gen.next()
+                        expect(counter).to.be.eq(0)
+                        await gen.next(2)
+                        expect(counter).to.be.eq(7)
+                    })
+
+                    it('Should provide modified next args to original GeneratorFunction/AsyncGeneratorFunction', async function () {
+                        const genFunc = function* () {
+                            let x = yield 1
+                            expect(x).to.be.eq(15)
+                            x = yield 2
+                            expect(x).to.be.eq(20)
+                            x = yield 3
+                            expect(x).to.be.eq(25)
+                            console.log('hey')
+                        }
+
+                        const genFuncAsync = async function* () {
+                            let x = yield 1
+                            expect(x).to.be.eq(15)
+                            x = yield 2
+                            expect(x).to.be.eq(20)
+                            x = yield 3
+                            expect(x).to.be.eq(25)
+                            console.log('hey')
+                        }
+
+                        let x = 10
+                        let gen = enhance(genFunc)
+                            .useNext(() => x += 3)
+                            .useNext(() => x += 2)()
+
+                        gen.next()
+                        gen.next()
+                        gen.next()
+
+                        x = 10
+                        gen = enhance(genFunc)
+                            .useNext(() => x += 3)
+                            .useNext(async () => x += 2)()
+
+                        await gen.next()
+                        await gen.next()
+                        await gen.next()
+
+                        x = 10
+                        gen = enhance(genFuncAsync)
+                            .useNext(() => x += 3)
+                            .useNext(async () => x += 2)()
+
+                        await gen.next()
+                        await gen.next()
+                        await gen.next()
+
+                        x = 10
+                        gen = enhance(genFuncAsync)
+                            .useNext(() => x += 3)
+                            .useNext(() => x += 2)()
+
+                        await gen.next()
+                        await gen.next()
+                        await gen.next()
+                    })
+                })
+
                 describe('#break', function () {
                     it('Break EnhancedGenerator when truthy value returned', async function () {
                         let gen = enhancedSyncSingle
